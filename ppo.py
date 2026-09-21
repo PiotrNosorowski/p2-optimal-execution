@@ -5,7 +5,8 @@ from torch.distributions import Normal
 class ActorCritic(nn.Module):
     def __init__(self):
         super().__init__()
-        
+
+        # common part
         self.fc1 = nn.Linear(2, 64)
         self.fc2 = nn.Linear(64, 64)
 
@@ -36,7 +37,7 @@ class ActorCritic(nn.Module):
 
     def get_action(self, x):
 
-        mu, value = self.forward(x)          # value is unused here
+        mu, value = self.forward(x)          # value is passed to training buffer
         std = torch.exp(self.log_std)
         
         dist = Normal(mu, std)
@@ -45,7 +46,7 @@ class ActorCritic(nn.Module):
         # what's under 0, gets 0 value  
         u = torch.clamp(u, min=0)       
 
-        # probability of action for given distribution
+        # log probability of action for given distribution
         log_prob = dist.log_prob(u)
         
         return u, log_prob, value
