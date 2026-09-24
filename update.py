@@ -2,23 +2,34 @@ import torch
 from torch.optim import Adam
 from torch.distributions import Normal
 from marl_env import Execution
+import numpy as np
 
 def update(model, optimizer, buffer, n_epochs=10, epsilon=0.2):
 
     # conversion to tensors
-    states = torch.tensor(buffer.states)
-    actions = torch.tensor(buffer.actions)
-    old_log_probs = torch.tensor(buffer.log_probs)
-    returns = torch.tensor(buffer.returns)
-    old_values = torch.tensor(buffer.values)
+    # as UserWarning due to calculation speed occurs, lists are converted to single numpy arrays
+    # Pytorch creates float64 by default, yet net requires float32
+    states = torch.tensor(np.array(buffer.states), dtype=torch.float32)
+    actions = torch.tensor(np.array(buffer.actions), dtype=torch.float32)
 
+    # RuntimeError: Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.
+    # ... so as old_log_probs and old_values are returned by net
+    old_log_probs = torch.tensor(np.array([lp.detach().numpy() for lp in buffer.log_probs]), dtype=torch.float32).squeeze()
+    returns = torch.tensor(np.array(buffer.returns), dtype=torch.float32)
+    # returns normalisation
+    returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+    
+    old_values = torch.tensor(np.array([v.detach().numpy() for v in buffer.values]), dtype=torch.float32).squeeze()
 
     # advantages = [real return] - [predicted return]
     advantages = returns - old_values
-
+    # MUST BE NORMALIZED AS IT'S SCALE IS TOO BIG TO HANDLE BY GRADIENT
+    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     for epoch in range(n_epochs):
-        mu_new, values_new = model(states)  
+        mu_new, values_new = model(states)
+        mu_new = mu_new.squeeze()
+        values_new = values_new.squeeze() 
 
         # as exponent cancels logarithm
         std = torch.exp(model.log_std)                 # parameter taken from model 
@@ -47,6 +58,7 @@ def update(model, optimizer, buffer, n_epochs=10, epsilon=0.2):
         optimizer.step()
         optimizer.zero_grad()
 
+        
 
 
 

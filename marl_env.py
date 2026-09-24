@@ -26,8 +26,9 @@ class Execution(ParallelEnv):
         # [g, timestep]
         # continuous and discrete values mixed, though Box() supports both types
         # ...and discrete values fits within continuous anyway 
-        self.observation_spaces = {agent: Box(low=0, high=np.array([self.g0, self.n_steps]), shape=(2,)) for agent in self.possible_agents}
-    
+        # self.observation_spaces = {agent: Box(low=0, high=np.array([self.g0, self.n_steps]), shape=(2,)) for agent in self.possible_agents}
+        # n_steps must have been normalized
+        self.observation_spaces = {agent: Box(low=0, high=np.array([1.0, 1.0]), shape=(2,)) for agent in self.possible_agents}
 
     def reset(self, seed=None, options=None):
         self.agents = copy(self.possible_agents)
@@ -36,8 +37,9 @@ class Execution(ParallelEnv):
         # agents' initial positions
         self.positions = {agent: self.g0 for agent in self.agents}  
 
-        # the state of the agents                                    
-        observations = {agent: np.array([float(self.positions[agent]), float(self.timestep)]) for agent in self.agents}
+        # the state of the agents
+        # TIMESTEP MUST BE NORMALIZED                                    
+        observations = {agent: np.array([float(self.positions[agent]) / self.g0, float(self.timestep) / self.n_steps]) for agent in self.agents}
 
         # API's purposes, remains empty   
         infos = {agent: {} for agent in self.agents}                     
@@ -51,7 +53,8 @@ class Execution(ParallelEnv):
         rewards = {agent: -(self.kappa * actions[agent] * total_u + self.gamma * self.positions[agent] * total_u + self.varphi * self.positions[agent] ** 2) 
                             for agent in self.agents} 
 
-        self.positions = {agent: (self.positions[agent] - actions[agent] * self.dt) for agent in self.agents}
+        # position cannot go below zero, so a constraint is applied
+        self.positions = {agent: max(0, self.positions[agent] - actions[agent] * self.dt) for agent in self.agents}
 
         # timestep = 1/n_steps
         self.timestep += 1                # steps counter
@@ -67,14 +70,14 @@ class Execution(ParallelEnv):
         # float type added to prevent array doubling (1st term)
         # float type added for int data type (2nd term)
         # ... as Box() required homogenous array type
-        observations = {agent: np.array([float(self.positions[agent]), float(self.timestep)]) for agent in self.agents}
+        observations = {agent: np.array([float(self.positions[agent]) / self.g0, float(self.timestep) / self.n_steps]) for agent in self.agents}
 
         # unused
         infos = {agent: {} for agent in self.agents}
 
         # if game is ended, no active players remain 
         if end: 
-            self.agents = []     # an empty list terminates the loop
+            self.agents = []     # list becomes empty 
 
         # 5 dicts to return
         return observations, rewards, terminations, truncations, infos

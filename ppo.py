@@ -27,7 +27,9 @@ class ActorCritic(nn.Module):
         x = torch.tanh(self.fc2(x))
 
         # actor head, the mean
-        mu = self.actor(x)
+        # mu = self.actor(x)
+        # CLAMP HAS ZERO GRADIENT BELOW ZERO -> training stucks
+        mu = torch.nn.functional.softplus(self.actor(x))
 
         # critic head, state value
         value = self.critic(x)
