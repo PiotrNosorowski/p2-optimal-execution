@@ -259,13 +259,7 @@ Factoring out $q^2$ (the equation must hold for every inventory level $q$) and s
 
 $$\dot{a}(t) = \frac{a(t)^2}{\kappa} - \phi, \qquad a(T) = \alpha$$
 
-It is integrated backward in time from $T$ to $0$ (`riccati.py`).
-
-**Optimal speed.** Substituting $\partial_q v = -2a(t) q$ into $\nu^*(t, q) = -\frac{\partial_q v(t, q)}{2\kappa}$ from step 6:
-
-$$\nu^*(t, q) = \frac{a(t)}{\kappa} q$$
-
-and was implemented in Python:
+It is integrated backward in time from $T$ to $0$ and was implemented in Python (`riccati.py`):
 
 ```python
 def da_dt(t, a):
@@ -277,68 +271,8 @@ solver = solve_ivp(da_dt, (T, 0), y0=[kappa], t_eval=ls,
                    rtol=1e-10, atol=1e-12)
 ```
 
-`da_dt` is the right-hand side of the Riccati ODE, solved backward from the terminal condition $a(T) = \alpha$ (set to $\alpha = \kappa$ in the code) and evaluated at 200 points between $T$ and $0$. The resulting $a(t)$ gives the optimal speed $\nu^* = \frac{a(t)}{\kappa} q$ at every time.
+`da_dt` is the right-hand side of the Riccati ODE, solved backward from the terminal condition $a(T) = \alpha$ (set to $\alpha = \kappa$ in the code) and evaluated at 200 points between $T$ and $0$.
 
-
-## N-Player Model
-
-### Setup
-
-$N$ agents liquidate positions in the same asset. Agent $i$ holds $q_i$ and sells at speed $\nu_i \ge 0$:
-
-$$dq_i = -\nu_i dt$$
-
-Because all agents trade the same asset, each agent's selling moves the price faced by all of them. The price-impact specification follows Carlin, Lobo & Viswanathan (2007), in which the price depends on the *aggregate* position and the *aggregate* trading rate of all traders.
-
-### Two Impact Channels
-
-**Permanent impact.** The mid-price is pushed down by the total selling speed of all agents:
-
-$$dS_t = -\gamma \sum_j \nu_j dt + \sigma dW_t$$
-
-**Temporary impact.** The price agent $i$ actually receives is lowered by the total selling speed at that instant:
-
-$$\hat{S}_t^i = S_t - \kappa \sum_j \nu_j$$
-
-> [!NOTE]
-> ### Difference from the Single-Agent Model
-> In the single-agent model both impacts depend only on the agent's own speed $\nu$. Here they depend on $\sum_j \nu_j$: every agent pays for everyone's trading. This is the only source of interaction between the agents. In Carlin, Lobo & Viswanathan the temporary coefficient is denoted $\lambda$; it is renamed $\kappa$ here to match the single-agent section.
-
-### From Cash to Cost
-
-The cash of agent $i$ evolves as
-
-$$dX_t^i = \left( S_t - \kappa \sum_j \nu_j \right) \nu_i dt$$
-
-and the agent maximizes the same criterion as in the single-agent case:
-
-$$\mathbb{E} \left[ X_T^i + q_i(T) \left( S_T - \alpha q_i(T) \right) - \phi \int_0^T q_i^2 dt \right]$$
-
-**Step 1: integrate the cash.**
-
-$$X_T^i = X_0^i + \int_0^T S_t \nu_i dt - \kappa \int_0^T \nu_i \sum_j \nu_j dt$$
-
-**Step 2: product rule for $q_i S$.** Since $q_i$ has no $dW$ term, there is no Itô correction:
-
-$$d(q_i S) = q_i dS + S dq_i = -\gamma q_i \sum_j \nu_j dt + \sigma q_i dW_t - S_t \nu_i dt$$
-
-Integrating from $0$ to $T$:
-
-$$q_i(T) S_T = q_i(0) S_0 - \gamma \int_0^T q_i \sum_j \nu_j dt + \sigma \int_0^T q_i dW_t - \int_0^T S_t \nu_i dt$$
-
-**Step 3: add Steps 1 and 2.** The terms $\int S_t \nu_i dt$ cancel, so the price level $S$ drops out.
-
-**Step 4: take expectations.** The Itô integral $\int q_i dW_t$ has zero mean, so the noise drops out as well.
-
-Maximizing the criterion is therefore equivalent to minimizing the cost
-
-$$J_i = \int_0^T \left( \underbrace{\kappa \nu_i \sum_j \nu_j}_{\text{temporary impact}} + \underbrace{\gamma q_i \sum_j \nu_j}_{\text{permanent impact}} + \underbrace{\phi q_i^2}_{\text{inventory penalty}} \right) dt + \underbrace{\alpha q_i(T)^2}_{\text{terminal penalty}}$$
-
-* **Temporary impact:** agent $i$ sells $\nu_i$ units at a price lowered by everyone's current selling.
-* **Permanent impact:** while agent $i$ still holds $q_i$, the others' selling keeps pushing the price down, marking that position down.
-* **Inventory and terminal penalties:** as in the single-agent model.
-
-This is exactly the negative of the reward implemented in `marl_env.py`, with the running part multiplied by $dt$ and the terminal penalty added at the last step. For $N = 1$ and $\gamma = 0$ it reduces to the single-agent criterion above.
 
 
 
