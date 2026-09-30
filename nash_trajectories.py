@@ -1,7 +1,7 @@
 # g solver
 
 from scipy.integrate import solve_ivp
-from coupled_ricatti import T, kappa, fun, gamma
+from coupled_riccati import T, kappa, fun, gamma
 
 n = 5
 g=10

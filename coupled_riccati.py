@@ -1,6 +1,6 @@
 from scipy.integrate import solve_ivp
 import numpy as np
-from ricatti import solver
+from riccati import solver
 
 kappa = 1
 varphi = 0.25

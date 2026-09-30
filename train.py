@@ -7,33 +7,13 @@ import torch
 from torch.optim import Adam
 from update import update
 
-env = Execution(n=5, kappa=1, gamma=1, varphi=0.25, T=10, g0=10, n_steps=50)
+env = Execution(n=5, kappa=1, gamma=0.2, varphi=0.25, T=10, g0=10, n_steps=50, A=1)
 
-n_episodes = 2000
+n_episodes = 1000
 
-models = {
-    "agent_0": ActorCritic(),
-    "agent_1": ActorCritic(),
-    "agent_2": ActorCritic(),
-    "agent_3": ActorCritic(),
-    "agent_4": ActorCritic(),
-}
-
-optimizers = {
-    "agent_0": Adam(models["agent_0"].parameters(), lr=3e-4),
-    "agent_1": Adam(models["agent_1"].parameters(), lr=3e-4),
-    "agent_2": Adam(models["agent_2"].parameters(), lr=3e-4),
-    "agent_3": Adam(models["agent_3"].parameters(), lr=3e-4),
-    "agent_4": Adam(models["agent_4"].parameters(), lr=3e-4),
-}
-
-buffers = {
-    "agent_0": Buffer(),
-    "agent_1": Buffer(),
-    "agent_2": Buffer(),
-    "agent_3": Buffer(),
-    "agent_4": Buffer(),
-}
+models = {agent: ActorCritic() for agent in env.possible_agents}
+optimizers = {agent: Adam(models[agent].parameters(), lr=3e-4) for agent in env.possible_agents}
+buffers = {agent: Buffer() for agent in env.possible_agents}
 
 
 for episode in range(n_episodes):
@@ -43,35 +23,23 @@ for episode in range(n_episodes):
     while env.agents:
 
         actions = {}
+        raw_actions = {}                             # NEW: unclipped samples, for the PPO update
         log_probs = {}
         values = {}
 
-        # requesting new action
-        # iteration via env as it's in charge of agents' activity
         for agent in env.agents:
 
-            # inserting states into agentic nets
-            # input of list [g,t] converted into tensor
-            u, log_prob, value = models[agent].get_action(torch.tensor(observations[agent], dtype=torch.float32))
+            u, u_raw, log_prob, value = models[agent].get_action(torch.tensor(observations[agent], dtype=torch.float32))   # NEW: 4 outputs
 
-            # as u is a tensor and env.step() does not operate on tensors
-            # ... a pure value must be retrieved
-            actions[agent] = u.item()                # as it's the proper action
+            actions[agent] = u.item()                # clipped action -> environment
+            raw_actions[agent] = u_raw.item()        # NEW: unclipped action -> buffer
             log_probs[agent] = log_prob
             values[agent] = value
 
-
-        # as for loop is done and dicts are full
-        # [g,t], rewards, ...
-        
         next_observations, rewards, terminations, truncations, infos = env.step(actions)
 
-        # filling buffers with new info
-        for agent in env.agents:
-
-            # storing the state BEFORE the action was taken, 
-            # ... so next_observations comes after, used below
-            buffers[agent].store(observations[agent], actions[agent], rewards[agent], log_probs[agent], values[agent])
+        for agent in actions:
+            buffers[agent].store(observations[agent], raw_actions[agent], rewards[agent], log_probs[agent], values[agent])   # NEW: raw_actions
 
         # the observation for the next loop to rely on
         observations = next_observations
@@ -89,4 +57,4 @@ print(f"final diff = {val_t[0].item() - val_t[1].item():.4f}")
     
 
 env.close() 
-torch.save(models["agent_0"].state_dict(), "agent_0_lr3e4_ent001_ep2000.pt")
+torch.save(models["agent_0"].state_dict(), "agent_0_fixA_ep1000.pt")

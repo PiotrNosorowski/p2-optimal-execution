@@ -9,7 +9,7 @@ class Execution(ParallelEnv):
         "name": "custom_environment_v0",
     }
 
-    def __init__(self, n, kappa, gamma, varphi, T, g0, n_steps):
+    def __init__(self, n, kappa, gamma, varphi, T, g0, n_steps, A):
         self.n = n
         self.kappa = kappa
         self.gamma = gamma
@@ -17,8 +17,9 @@ class Execution(ParallelEnv):
         self.T = T
         self.g0 = g0
         self.n_steps = n_steps
+        self.A = A
         self.dt = T / n_steps              # time step length
-        self.possible_agents = ["agent_0", "agent_1", "agent_2", "agent_3", "agent_4"]
+        self.possible_agents = [f"agent_{i}" for i in range(n)]
 
         # as [u] belongs to the (0, g0) interval 
         self.action_spaces = {agent: Box(low=0, high=self.g0, shape=(1,)) for agent in self.possible_agents}
@@ -50,8 +51,10 @@ class Execution(ParallelEnv):
     def step(self, actions):
         # .values to extract dictionary values; here: selling rates u
         total_u = sum(actions.values())
-        rewards = {agent: -(self.kappa * actions[agent] * total_u + self.gamma * self.positions[agent] * total_u + self.varphi * self.positions[agent] ** 2) 
-                            for agent in self.agents} 
+        rewards = {agent: -(self.kappa * actions[agent] ** 2
+                    + self.gamma * self.positions[agent] * total_u
+                    + self.varphi * self.positions[agent] ** 2) * self.dt
+                    for agent in self.agents} 
 
         # position cannot go below zero, so a constraint is applied
         self.positions = {agent: max(0, self.positions[agent] - actions[agent] * self.dt) for agent in self.agents}
@@ -75,9 +78,11 @@ class Execution(ParallelEnv):
         # unused
         infos = {agent: {} for agent in self.agents}
 
-        # if game is ended, no active players remain 
-        if end: 
-            self.agents = []     # list becomes empty 
+        # if game is ended: terminal penalty on what is left, then no active players remain
+        if end:
+            for agent in self.agents:
+                rewards[agent] -= self.A * self.positions[agent] ** 2
+            self.agents = []     # list becomes empty
 
         # 5 dicts to return
         return observations, rewards, terminations, truncations, infos

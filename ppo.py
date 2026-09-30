@@ -43,14 +43,14 @@ class ActorCritic(nn.Module):
         std = torch.exp(self.log_std)
         
         dist = Normal(mu, std)
-        u = dist.sample()
+        u_raw = dist.sample()
 
-        # what's under 0, gets 0 value  
-        u = torch.clamp(u, min=0)       
+        # log probability of the action that was actually sampled (before clipping)
+        log_prob = dist.log_prob(u_raw)
 
-        # log probability of action for given distribution
-        log_prob = dist.log_prob(u)
-        
-        return u, log_prob, value
+        # only the environment gets the clipped action; what's under 0 gets 0
+        u = torch.clamp(u_raw, min=0)
+
+        return u, u_raw, log_prob, value
 
 

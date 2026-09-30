@@ -1,7 +1,7 @@
 from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
-from coupled_ricatti import fun, kappa, gamma, T
+from coupled_riccati import fun, kappa, gamma, T
 
 g0 = 10
 

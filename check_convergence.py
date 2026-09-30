@@ -2,12 +2,13 @@ from marl_env import Execution
 from ppo import ActorCritic
 import torch
 import matplotlib.pyplot as plt
-from race_to_sell import count
+from nash_et import count
+import numpy as np
 
-env = Execution(n=5, kappa=1, gamma=1, varphi=0.25, T=10, g0=10, n_steps=50)
+env = Execution(n=5, kappa=1, gamma=0.2, varphi=0.25, T=10, g0=10, n_steps=50, A=1)
 
 model = ActorCritic()
-model.load_state_dict(torch.load("agent_0_lr3e4_ent001_ep2000.pt"))
+model.load_state_dict(torch.load("agent_0_fixA_ep1000.pt"))
 model.eval()
 
 
@@ -36,14 +37,17 @@ t_analytic, g_analytic = count(5)
 # as analytical and marl axe must be comparable 
 time_marl = [i * env.dt for i in range(len(trajectory))]
 
-plt.plot(t_analytic, g_analytic, label="analytic Nash (n=5)")
-plt.plot(time_marl, trajectory, label="trained MARL agent")
+plt.plot(t_analytic, g_analytic, label="analytic Nash (n=1, gamma=0)")
+plt.plot(time_marl, trajectory, label="trained ppo agent")
 plt.xlabel("step / time")
 plt.ylabel("position g")
 plt.legend()
-plt.savefig("convergence_lr3e4_ent001_ep2000.jpg")
+plt.savefig("agent_0_fixA_ep1000.jpg")
 plt.show()
 
 
+g_rl = trajectory[10]
+g_benchmark = np.interp(2, t_analytic, g_analytic)
+print(f"t = 2: RL {g_rl:.3f}, benchmark {g_benchmark:.3f}, gap {g_rl - g_benchmark:.3f}")
 
 
