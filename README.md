@@ -556,10 +556,10 @@ The log-probability of each action was computed for the clipped action instead o
 
 ![Five agents, after the fix](images/convergence_fixA_ep1000.jpg)
 
-| | RL at $`t = 2`$ | Benchmark at $`t = 2`$ | Gap |
+| | RL at $`t = 2`$ | Nash at $`t = 2`$ | Gap |
 |---|---|---|---|
-| single agent, after the fix | $`\approx 5.0`$ | $`3.7`$ (Riccati) | $`\approx 1.3`$ |
-| five agents, after the fix | $`\approx 4.7`$ | $`2.3`$ (Nash) | $`\approx 2.4`$ |
+| single agent, after the fix | 4.917 | 3.679 | 1.239 |
+| five agents, after the fix | 4.693 | 2.283 | 2.410 |
 
 * The fix roughly halves the gap of the single agent and removes the early liquidation at the end: the agents now keep a small remainder at $`T`$, as the exact solutions do.
 * With five agents the gap at the start is about twice as large as with one agent. The remaining difference appears only in the multi-agent setting and is most likely due to non-stationarity: every agent learns while the others are learning too, and with one update per episode each agent adapts to a moving target.
