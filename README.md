@@ -454,6 +454,8 @@ Since $`u = -\dot{g}`$, the second derivative $`\ddot{g} = -\dot{u}`$ is the rat
 
 With a single agent and no permanent impact, $`N = 1`$, $`\gamma = 0`$, the middle term disappears and the equation reduces to the single-agent case derived above.
 
+The theorem requires $`A > \frac{\alpha}{2N}`$ (their Lemma 3.1) and $`\alpha^2 < 16\kappa\lambda`$ (their Theorem 3.6, which gives existence and uniqueness of the equilibrium). In this project's notation these read $`A > \frac{\gamma}{2}`$ and $`(N\gamma)^2 < 16\kappa\varphi`$; with the parameters used here, $`1 > 0.1`$ and $`1 < 4`$, so both hold.
+
 ### Closed-form solution
 
 The same theorem gives the solution explicitly (their eq. (3.32)):
