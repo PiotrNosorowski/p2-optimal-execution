@@ -7,31 +7,34 @@
 3. [Breaking Down Running Inventory Penalty](#breaking-down-running-inventory-penalty)
 4. [From Performance Criterion to the HJB Equation](#from-performance-criterion-to-the-hjb-equation)
 5. [Deriving the Optimal Strategy and Ansatz](#deriving-the-optimal-strategy-and-ansatz)
-6. [Analytical Nash Equilibrium](#analytical-nash-equilibrium)
-7. [References](#references)
+6. [From One Agent to N Agents](#from-one-agent-to-n-agents)
+7. [Analytical Nash Equilibrium](#analytical-nash-equilibrium)
+8. [Multi-Agent Environment and Training](#multi-agent-environment-and-training)
+9. [Results](#results)
+10. [References](#references)
 
 
 
 ## Introduction
 
-The aim of the project was to examine the convergence between Multi-Agent Reinforcement Learning approach and mathematical ground truth of position liquidation. The agents do not observe each others' actions or positions, yet got a feedback from the environment they influence by constant sell.
+The aim of the project is to examine whether independently trained Multi-Agent Reinforcement Learning agents converge to the analytical Nash equilibrium of an N-player position liquidation game. Several agents sell the same asset at the same time, and each agent's selling moves the price for everyone. The agents do not observe each other's actions or positions, yet they receive feedback from the environment they jointly influence through their selling.
 
 Following the framework established by Cartea et al. (2015), the primary objective of a trading agent is to maximize the expected execution performance criterion over a finite time horizon $[0, T]$:
 
-$$H^{\nu}(t, x, S, q) = \mathbb{E}_{t,x,S,q} \left[ \underbrace{X_T^{\nu}}_{\text{Terminal Cash}} + \underbrace{Q_T^{\nu} \left(S_T^{\nu} - \alpha Q_T^{\nu}\right)}_{\text{Terminal Execution}} - \underbrace{\varphi \int_t^T (Q_u^{\nu})^2 \, du}_{\text{Inventory Penalty}} \right]$$
+$$H^{\nu}(t, x, S, q) = \mathbb{E}_{t,x,S,q} \left[ \underbrace{X_T^{\nu}}_{\text{Terminal Cash}} + \underbrace{Q_T^{\nu} \left(S_T^{\nu} - \alpha Q_T^{\nu}\right)}_{\text{Terminal Execution}} - \underbrace{\varphi \int_t^T (Q_u^{\nu})^2  du}_{\text{Inventory Penalty}} \right]$$
 
 where:
 * $X_T^{\nu}$ – cash balance at time $T$,
 * $Q_T^{\nu}$ – remaining inventory at time $T$,
 * $S_T^{\nu}$ – asset mid-price at time $T$,
-* $\alpha$ – terminal liquidation penalty (`alpha`),
+* $\alpha$ – terminal liquidation penalty (set to `kappa` in the code),
 * $\varphi$ – running inventory risk penalty (`varphi`).
 
 ### Breaking Down Terminal Cash ($X_T^{\nu}$)
 
 The accumulation of cash $X_T^{\nu}$ is modeled by integrating the instant revenue generated from selling inventory at speed $\nu_t$:
 
-$$dX_t^{\nu} = \hat{S}_t^{\nu} \nu_t \, dt$$
+$$dX_t^{\nu} = \hat{S}_t^{\nu} \nu_t  dt$$
 
 where $\hat{S}_t^{\nu}$ represents the effective fill price. 
 
@@ -45,36 +48,38 @@ $$\hat{S}_t^{\nu} = S_t^{\nu} - \frac{1}{2}\Delta - f(\nu_t)$$
 
 Substituting $\hat{S}_t^{\nu}$ yields the explicit differential cash dynamics:
 
-$$dX_t^{\nu} = \left( S_t^{\nu} - \frac{1}{2}\Delta - f(\nu_t) \right) \nu_t \, dt$$
+$$dX_t^{\nu} = \left( S_t^{\nu} - \frac{1}{2}\Delta - f(\nu_t) \right) \nu_t  dt$$
 
 Assuming a linear temporary market impact $f(\nu_t) = \kappa \nu_t$ (represented as `kappa` in the codebase):
 
-$$dX_t^{\nu} = S_t^{\nu} \nu_t \, dt - \frac{1}{2}\Delta \nu_t \, dt - \kappa \nu_t^2 \, dt$$
+$$dX_t^{\nu} = S_t^{\nu} \nu_t  dt - \frac{1}{2}\Delta \nu_t  dt - \kappa \nu_t^2  dt$$
 
 By the **Fundamental Theorem of Calculus**, integrating the differential $dX_t^{\nu}$ over the interval $[0, T]$ recovers the total change in cash ($\int_0^T dX_t^{\nu} = X_T^{\nu} - X_0^{\nu}$). Isolating the terminal state $X_T^{\nu}$ pulls the initial value $X_0^{\nu}$ outside the integral:
 
 $$X_T^{\nu} = X_0^{\nu} + \int_0^T dX_t^{\nu} = X_0^{\nu} + \int_0^T \left( S_t^{\nu} \nu_t - \frac{1}{2}\Delta \nu_t - \kappa \nu_t^2 \right) dt$$
 
-Assuming zero initial cash ($X_0^{\nu} = 0$) and setting aside fixed spread costs, substituting $dX_t^{\nu}$ directly yields:
+Assuming zero initial cash ($X_0^{\nu} = 0$) and setting aside the spread (see the note below):
+
+$$X_T^{\nu} = \int_0^T \left( S_t^{\nu} \nu_t - \kappa \nu_t^2 \right) dt$$
 
 > [!NOTE]
 > ### Justification for Setting Aside the Spread Term ($\Delta$)
 >
 > The cumulative revenue loss due to the bid-ask spread over $[0, T]$ is given by:
 >
-> $$\int_0^T \frac{1}{2}\Delta \nu_t \, dt = \frac{1}{2}\Delta \int_0^T \nu_t \, dt$$
+> $$\int_0^T \frac{1}{2}\Delta \nu_t  dt = \frac{1}{2}\Delta \int_0^T \nu_t  dt$$
 >
 > Since $\nu_t = -\dot{Q}_t$, applying the Fundamental Theorem of Calculus yields:
 >
-> $$\int_0^T \frac{1}{2}\Delta \nu_t \, dt = \frac{1}{2}\Delta (Q_0 - Q_T)$$
+> $$\int_0^T \frac{1}{2}\Delta \nu_t  dt = \frac{1}{2}\Delta (Q_0 - Q_T)$$
 >
-> Under full liquidation ($Q_T = 0$), this term collapses to the deterministic constant $\frac{1}{2}\Delta Q_0$. Because $Q_0$ and $\Delta$ are fixed, exogenous parameters, this constant offset does not depend on the control trajectory $\nu_t$. Consequently, its derivative with respect to $\nu_t$ is zero, leaving the optimal execution policy $\nu_t^*$ unaffected. It can therefore be set aside during functional optimization without loss of generality.
+> Assuming the residual inventory $Q_T$ is also liquidated at $T$ and pays the half-spread, the total spread cost is $\frac{1}{2}\Delta Q_0$ regardless of the trajectory. Because $Q_0$ and $\Delta$ are fixed, exogenous parameters, this constant offset does not depend on the control trajectory $\nu_t$. Consequently, its derivative with respect to $\nu_t$ is zero, leaving the optimal execution policy $\nu_t^*$ unaffected. It can therefore be set aside during functional optimization without loss of generality.
 
 ### Breaking Down Terminal Liquidation
 
 $$\text{Terminal Value} = Q_T^{\nu} \left( S_T^{\nu} - \alpha Q_T^{\nu} \right)$$
 
-At the end of the trading period ($t = T$), any remaining shares $Q_T^{\nu}$ must be sold immediately. The money received from this final sale is given by the formula above, where $\alpha$ (represented as `alpha` in the code) is the penalty parameter for selling leftover stock.
+At the end of the trading period ($t = T$), any remaining shares $Q_T^{\nu}$ must be sold immediately. The money received from this final sale is given by the formula above, where $\alpha$ (set to `kappa` in the code) is the penalty parameter for selling leftover stock.
 
 Expanding this formula splits the final value into two parts:
 
@@ -95,19 +100,19 @@ $$\text{Terminal Value} = Q_T^{\nu} S_T^{\nu} - \alpha (Q_T^{\nu})^2$$
 
 While waiting to sell, holding unsold shares carries risk because stock prices can change. To account for this, the model adds an extra penalty cost over time:
 
-$$\text{Running Inventory Penalty} = \phi \int_0^T (Q_t^{\nu})^2 \, dt$$
+$$\text{Running Inventory Penalty} = \varphi \int_0^T (Q_t^{\nu})^2  dt$$
 
-where $\phi$ (represented as `phi` in the code) sets how strongly the model penalizes holding stock.
+where $\varphi$ (represented as `varphi` in the code) sets how strongly the model penalizes holding stock.
 
 Here is what each part means:
 
 * **Shares Held ($Q_t^{\nu}$):** The number of unsold shares in your portfolio at time $t$.
 * **Squared Penalty ($(Q_t^{\nu})^2$):** Makes holding large amounts of stock much more expensive. Holding 2,000 shares costs four times as much penalty as holding 1,000 shares.
-* **Risk Parameter ($\phi$):** Controls how much the model fears holding stock. A higher $\phi$ forces the model to sell faster.
+* **Risk Parameter ($\varphi$):** Controls how much the model fears holding stock. A higher $\varphi$ forces the model to sell faster.
 * **Total Over Time ($\int_0^T \dots dt$):** Adds up this penalty cost for every second from start ($t = 0$) to end ($t = T$).
 
 > [!NOTE]
-> ### Why Use a Squared Term ($\phi Q_t^2$)?
+> ### Why Use a Squared Term ($\varphi Q_t^2$)?
 >
 > Using $Q_t^2$ instead of just $Q_t$ does two main things:
 > 1. **Prevents Big Losses:** Holding many shares carries higher price risk. Squaring the number of shares forces the model to treat big positions as very dangerous.
@@ -117,7 +122,7 @@ Here is what each part means:
 
 The model begins with the expected total value formula $H^{\nu}$, which sums up all rewards and penalties from time $t$ to $T$:
 
-$$H^{\nu}(t, x, S, q) = \mathbb{E}_{t,x,S,q} \left[ \underbrace{X_T^{\nu}}_{\text{Terminal Cash}} + \underbrace{Q_T^{\nu} \left(S_T^{\nu} - \alpha Q_T^{\nu}\right)}_{\text{Terminal Execution}} - \underbrace{\phi \int_t^T (Q_u^{\nu})^2 \, du}_{\text{Inventory Penalty}} \right]$$
+$$H^{\nu}(t, x, S, q) = \mathbb{E}_{t,x,S,q} \left[ \underbrace{X_T^{\nu}}_{\text{Terminal Cash}} + \underbrace{Q_T^{\nu} \left(S_T^{\nu} - \alpha Q_T^{\nu}\right)}_{\text{Terminal Execution}} - \underbrace{\varphi \int_t^T (Q_u^{\nu})^2  du}_{\text{Inventory Penalty}} \right]$$
 
 To find the best outcome, we define the **Value Function** $V(t, x, S, q)$ as the maximum expected value achieved by choosing the optimal trading speed $\nu^*$:
 
@@ -129,7 +134,7 @@ $$dS_t = -g(\nu_t) dt + \sigma dW_t$$
 
 Applying Dynamic Programming yields the full Hamilton-Jacobi-Bellman (HJB) equation:
 
-$$0 = \left( \partial_t + \frac{1}{2}\sigma^2 \partial_{SS} \right) V - \phi q^2 + \sup_{\nu} \left[ \left( \nu (S - f(\nu)) \partial_x - g(\nu) \partial_S - \nu \partial_q \right) V \right]$$
+$$0 = \left( \partial_t + \frac{1}{2}\sigma^2 \partial_{SS} \right) V - \varphi q^2 + \sup_{\nu} \left[ \left( \nu (S - f(\nu)) \partial_x - g(\nu) \partial_S - \nu \partial_q \right) V \right]$$
 
 ---
 
@@ -173,7 +178,7 @@ $$\frac{2 [(S \partial_x - b \partial_S - \partial_q) V]^2}{4\kappa \partial_x V
 
 Inserting this result back into the full HJB equation yields:
 
-$$0 = \left( \partial_t + \frac{1}{2}\sigma^2 \partial_{SS} \right) V - \phi q^2 + \frac{[(S \partial_x - b \partial_S - \partial_q) V]^2}{4\kappa \partial_x V}$$
+$$0 = \left( \partial_t + \frac{1}{2}\sigma^2 \partial_{SS} \right) V - \varphi q^2 + \frac{[(S \partial_x - b \partial_S - \partial_q) V]^2}{4\kappa \partial_x V}$$
 
 #### 3. Separating Cash from Risk (Ansatz)
 At terminal time $T$, trading stops and the total portfolio value is known exactly from the terminal condition:
@@ -190,7 +195,7 @@ where $v(T, S, q) = -\alpha q^2$. The terms represent:
 
 * **Why $v$ depends on $(t, S, q)$ and not $x$:**
   * **No $x$:** Cash carries zero execution risk or price impact ($\partial_x V = 1$), so its value is purely additive ($+x$) and drops out of the PDE completely.
-  * **$(t, S, q)$:** These state variables carry all system dynamics—inventory risk ($\phi q^2$), remaining time ($T - t$), and market price ($S$).
+  * **$(t, S, q)$:** These state variables carry all system dynamics—inventory risk ($\varphi q^2$), remaining time ($T - t$), and market price ($S$).
 
 #### 4. Substituting the Ansatz into the HJB Equation
 We calculate the partial derivatives of $V(t, x, S, q) = x + qS + v(t, S, q)$:
@@ -211,7 +216,7 @@ $$\frac{\left( -\left[ b(q + \partial_S v) + \partial_q v \right] \right)^2}{4\k
 
 Substituting this expression back into the main HJB equation yields:
 
-$$0 = \left( \partial_t + \frac{1}{2}\sigma^2 \partial_{SS} \right) v - \phi q^2 + \frac{\left[ b(q + \partial_S v) + \partial_q v \right]^2}{4\kappa}$$
+$$0 = \left( \partial_t + \frac{1}{2}\sigma^2 \partial_{SS} \right) v - \varphi q^2 + \frac{\left[ b(q + \partial_S v) + \partial_q v \right]^2}{4\kappa}$$
 
 #### 5. Reduction to $v(t, q)$
 Since neither the PDE above nor the terminal condition $v(T, q) = -\alpha q^2$ explicitly depends on $S$, the function $v$ is independent of the share price ($v(t, S, q) = v(t, q)$). Thus, all price derivatives vanish:
@@ -220,7 +225,7 @@ $$\partial_S v = 0 \quad \text{and} \quad \partial_{SS} v = 0$$
 
 Assuming zero permanent impact ($b = 0$), the term $bq$ vanishes as well, reducing the equation to its final form for $v(t, q)$:
 
-$$0 = \partial_t v(t, q) - \phi q^2 + \frac{(\partial_q v(t, q))^2}{4\kappa}$$
+$$0 = \partial_t v(t, q) - \varphi q^2 + \frac{(\partial_q v(t, q))^2}{4\kappa}$$
 
 #### 6. Expressing Optimal Speed in Terms of $v(t, q)$
 We start from the general formula for optimal trading speed:
@@ -231,12 +236,12 @@ Substituting our partial derivatives ($\partial_x V = 1$, $\partial_S V = q + \p
 
 $$\nu^* = \frac{S(1) - b(q + \partial_S v) - (S + \partial_q v)}{2\kappa(1)}$$
 
-Applying zero permanent impact ($b = 0$) and price independence ($\partial_S v = 0$) simplifies the expression directly to[cite: 1]:
+Applying zero permanent impact ($b = 0$) and price independence ($\partial_S v = 0$) simplifies the expression directly to:
 
 $$\nu^*(t, q) = \frac{S(1) - 0 - (S + \partial_q v)}{2\kappa(1)} = -\frac{\partial_q v(t, q)}{2\kappa}$$
 
 #### 7. Reducing the PDE to a Riccati ODE
-Both the running inventory penalty ($\phi q^2$) and the terminal penalty ($-\alpha q^2$) are quadratic in $q$, so we propose a quadratic Ansatz for $v(t, q)$:
+Both the running inventory penalty ($\varphi q^2$) and the terminal penalty ($-\alpha q^2$) are quadratic in $q$, so we propose a quadratic Ansatz for $v(t, q)$:
 
 $$v(t, q) = -a(t) q^2$$
 
@@ -244,24 +249,24 @@ with terminal condition $a(T) = \alpha$, read off from $v(T, q) = -\alpha q^2$.
 
 > [!NOTE]
 > ### Why the minus sign?
-> $v$ is a *value* (money gained), while holding inventory is a *cost*. Writing $v = -a q^2$ makes $a(t) > 0$ the cost per unit of squared inventory, which is exactly the variable `a` solved for in `ricatti.py`.
+> $v$ is a *value* (money gained), while holding inventory is a *cost*. Writing $v = -a q^2$ makes $a(t) > 0$ the cost per unit of squared inventory, which is exactly the variable `a` solved for in `riccati.py`.
 
 Its partial derivatives are:
 
 * $\partial_t v = -\dot{a}(t) q^2$
 * $\partial_q v = -2a(t) q$
 
-Substituting these into the reduced PDE $0 = \partial_t v - \phi q^2 + \frac{(\partial_q v)^2}{4\kappa}$:
+Substituting these into the reduced PDE $0 = \partial_t v - \varphi q^2 + \frac{(\partial_q v)^2}{4\kappa}$:
 
-$$-\dot{a}(t) q^2 - \phi q^2 + \frac{(-2a(t) q)^2}{4\kappa} = 0$$
+$$-\dot{a}(t) q^2 - \varphi q^2 + \frac{(-2a(t) q)^2}{4\kappa} = 0$$
 
 Squaring removes the minus sign, $(-2aq)^2 = 4a^2q^2$, so:
 
-$$-\dot{a}(t) q^2 - \phi q^2 + \frac{a(t)^2}{\kappa} q^2 = 0$$
+$$-\dot{a}(t) q^2 - \varphi q^2 + \frac{a(t)^2}{\kappa} q^2 = 0$$
 
 Factoring out $q^2$ (the equation must hold for every inventory level $q$) and solving for $\dot{a}$ gives a single Riccati Ordinary Differential Equation:
 
-$$\dot{a}(t) = \frac{a(t)^2}{\kappa} - \phi, \qquad a(T) = \alpha$$
+$$\dot{a}(t) = \frac{a(t)^2}{\kappa} - \varphi, \qquad a(T) = \alpha$$
 
 It is integrated backward in time from $T$ to $0$ and was implemented in Python (`riccati.py`):
 
@@ -479,23 +484,24 @@ The equilibrium selling rate is the speed at which the position falls, $`u(t) = 
 It was implemented in Python (`nash_et.py`):
 
 ```python
-theta = np.sqrt((n - 1)**2 * gamma**2 + 16 * varphi * kappa) / (4 * kappa)
-r_plus = -(n - 1) * gamma / (4 * kappa) + theta
-r_minus = -(n - 1) * gamma / (4 * kappa) - theta
-k_T = (A - gamma / 2) / kappa
+def count(n, gamma=gamma):
+    theta = np.sqrt((n - 1)**2 * gamma**2 + 16 * varphi * kappa) / (4 * kappa)
+    r_plus = -(n - 1) * gamma / (4 * kappa) + theta
+    r_minus = -(n - 1) * gamma / (4 * kappa) - theta
+    k_T = (A - gamma / 2) / kappa
 
-def y(t):
-    return (-(r_minus + k_T) * np.exp(-r_plus * (T - t)) / (2 * theta)
-            + (r_plus + k_T) * np.exp(-r_minus * (T - t)) / (2 * theta))
+    def y(t):
+        return (-(r_minus + k_T) * np.exp(-r_plus * (T - t)) / (2 * theta)
+                + (r_plus + k_T) * np.exp(-r_minus * (T - t)) / (2 * theta))
 
-def position(t):
-    return g0 * y(t) / y(0)
+    t = np.linspace(0, T, 200)
+    return t, g0 * y(t) / y(0)
 ```
 
 ### Why this is the right equilibrium for the agents
 
 In Evangelista & Thamsten each agent optimises its own strategy while treating the others' trading as given (their Definition 2.1). This matches the environment: each agent observes only its own position and the time, $`(g_i, t)`$, and cannot react to the others. The equilibrium the agents can learn is therefore exactly this one.
-## References
+
 
 
 ## Multi-Agent Environment and Training
@@ -536,17 +542,19 @@ Each agent is trained with its own network (Independent PPO) rather than a singl
 
 ### Five agents against the Nash equilibrium
 
-![Five agents, before the fix](images/marl_before_fix.png)
+![Five agents, before the fix](images/convergence_lr3e4_ent001_ep1000.jpg)
 
 The trained agents liquidate their positions, and after $`t \approx 3`$ their trajectory has the shape of the Nash equilibrium. At the start, however, they sell much more slowly: the Nash equilibrium sells fastest at $`t = 0`$, while the agents start slowly and accelerate later, giving an S-shaped trajectory. Training for 5000 instead of 1000 episodes made the start slower, not faster, so the gap is not a matter of training time.
 
-### Where the gap comes from: a single-agent test
+![Five agents, 5000 episodes, before the fix](images/convergence_lr3e4_ent001_ep5000.jpg)
 
-To separate learning errors from multi-agent effects, the same code was run with a single agent and no permanent impact ($`N = 1`$, $`\gamma = 0`$), for which the exact solution is the single-agent Riccati equation of Cartea et al.
+### A single-agent test
 
-![Single agent, before the fix](images/single_before_fix.png)
+To separate learning errors from multi-agent effects, the same code was run with a single agent and no permanent impact ($`N = 1`$, $`\gamma = 0`$). With a single agent the Nash equilibrium is the optimal strategy of that agent, i.e. the single-agent Riccati solution of Cartea et al.
 
-A single PPO agent shows the same slow start. The gap is therefore produced, at least partly, by the learning setup itself and not by the interaction between agents.
+![Single agent, before the fix](images/single_before_fix.jpg)
+
+A single PPO agent, with no other agents at all, also starts too slowly. The slow start is therefore produced by the learning setup and not by the interaction between agents.
 
 ### Fix: log-probability of the unclipped action
 
@@ -556,25 +564,27 @@ The log-probability of each action was computed for the clipped action instead o
 
 ![Five agents, after the fix](images/convergence_fixA_ep1000.jpg)
 
-| | RL at $`t = 2`$ | Nash at $`t = 2`$ | Gap |
+Before the fix, the agents sold their whole position before $`T`$, with one agent and with five; after the fix they keep a small remainder at $`T`$, as the exact solutions do. The fix consistently corrects the end of the trajectory.
+
+### Size of the gap
+
+| Run | RL at $`t = 2`$ | Nash at $`t = 2`$ | Gap |
 |---|---|---|---|
 | single agent, after the fix | 4.917 | 3.679 | 1.239 |
 | five agents, after the fix | 4.693 | 2.283 | 2.410 |
 
-* The fix roughly halves the gap of the single agent and removes the early liquidation at the end: the agents now keep a small remainder at $`T`$, as the exact solutions do.
-* With five agents the gap at the start is about twice as large as with one agent. The remaining difference appears only in the multi-agent setting and is most likely due to non-stationarity: every agent learns while the others are learning too, and with one update per episode each agent adapts to a moving target.
-
-Each curve comes from a single training run with one random seed, so differences of a few tenths are within run-to-run variation; the conclusions are about direction, not exact size.
+* The agents start too slowly in every setting, before and after the fix, with one agent and with five.
+* The fix corrects the end of the trajectory: the agents no longer sell their whole position before $`T`$.
+* Each row is a single training run with one random seed, so the two gaps are not directly comparable; a comparison requires several seeds per setting.
 
 ### Next steps
 
-1. Several episodes per PPO update, with returns normalised over the whole batch, to reduce the noise of each update and the non-stationarity between agents.
-2. Several random seeds per setting, with mean and spread of the trajectories.
+1. Several random seeds per setting, with mean and spread of the trajectories; without them the size of the gap cannot be compared between settings.
+2. Several episodes per PPO update, with returns normalised over the whole batch, to reduce the noise of each update and the variation between runs.
 3. An exploitability test for the learned strategies: the gain of one agent that deviates while the others play the learned policy.
 
+## References
 
 [1] Cartea, Á., Jaimungal, S., & Penalva, J. (2015). *Algorithmic and High-Frequency Trading*. Cambridge University Press.
 
-[2] Carlin, B. I., Lobo, M. S., & Viswanathan, S. (2007). Episodic Liquidity Crises: Cooperative and Predatory Trading. *The Journal of Finance*, 62(5), 2235–2274.
-
-[3] Carmona, R., & Zeng, C. (2022). Optimal Execution with Identity Optionality. *Applied Mathematical Finance*, 29(4), 261–.
+[2] Evangelista, D., & Thamsten, Y. (2020). On finite population games of optimal trading. arXiv:2004.00790.
